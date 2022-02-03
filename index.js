@@ -1,76 +1,86 @@
-// subtitles will be delayed by the second argument's value
-const DEFAULT_SECONDS_TO_DELAY = 12;
-
 // in my case, we need to read/write the file as-is
-// if there's a problem, maybe try reading/writing as "utf-8"
-const DEFAULT_FILE_ENCODING = "binary";
+// if there's a problem, maybe try changin encoding to "utf-8"
+const FILE_ENCODING = "binary";
 
+const SRT_DATE_INTERVAL_SEPARATOR = "-->";
+
+// node file system
 const fs = require('fs');
+// eol is the default line break (generally '\n' or '\r\n') of your operating system
 const { EOL } = require('os');
 
-const SRT_INTERVAL_SEPARATOR = "-->";
+const pathArg = process.argv[2];
+const secondsToDelayArg = process.argv[3];
 
-const path = process.argv[2];
-const secondsToDelay = process.argv[3] ? parseInt(process.argv[3]) : DEFAULT_SECONDS_TO_DELAY;
 
 console.log("");
 console.log("############################################");
 console.log("######## NODE JS SUBTITLE DELAYER!! ########");
 console.log("############################################");
 console.log("");
-console.log(`this will get the .srt file path passed as 1st argument of this script`);
-console.log(`and delay all its contents by the number informed in the 2nd argument`);
-console.log(`(if none informed, default is ${DEFAULT_SECONDS_TO_DELAY}) because I want it this way\n`);
+console.log(`this script will read the .srt file path passed as 1st argument`);
+console.log(`and offset all its subtitles by the number informed in the 2nd argument\n`);
 
-
-if (!path) {
+if (!pathArg) {
 	console.log("error: you should inform the path of subtitle file (.srt) as first argument of this!!");
 	process.exit();
 }
 
-fs.readFile(path, { encoding: DEFAULT_FILE_ENCODING }, (error, data) => {
-	console.log(`trying to read file ${path}\n`);
+if (!secondsToDelayArg || isNaN(secondsToDelayArg)) {
+	console.log("error: you should inform the amount of seconds to offset\nas a plain integer like 3 or 7 or -5!!");
+	process.exit();
+}
+
+const secondsToDelay = parseInt(secondsToDelayArg);
+
+fs.readFile(pathArg, { encoding: FILE_ENCODING }, (error, data) => {
+	console.log(`trying to read file ${pathArg}\n`);
 
   if (error) {
 		console.log(error);
     process.exit();
   }
 	
-  const lines = data.split(EOL);
+  const lines = data.split(/\r?\n/);
 
 	for (let i = 0; i < lines.length; i += 1) {
 		const line = lines[i];
 		
-		if (!line.includes(SRT_INTERVAL_SEPARATOR)) {
+		// only operate on lines that have the timestamp separator '-->'
+		if (!line.includes(SRT_DATE_INTERVAL_SEPARATOR)) {
 			continue;
 		}
 		
-		const interval = line.split(SRT_INTERVAL_SEPARATOR);
-		const startTimeStr = interval[0].trim().split(",")[0];
+		const interval = line.split(SRT_DATE_INTERVAL_SEPARATOR);
+
+		// start of subtitle
+		const tupleStartTimeAndMillis = interval[0].trim().split(",");
+		const startTimeStr = tupleStartTimeAndMillis[0];
+		const startTimeMillis = tupleStartTimeAndMillis[1];
 		const startTime = startTimeStr.split(":");
 
-		const endTimeStr = interval[1].trim().split(",")[0];
-		const endTime   = endTimeStr.split(":");
-
 		const startDate = new Date();
-		startDate.setHours(parseInt(startTime[0]));
-		startDate.setMinutes(parseInt(startTime[1]));
-		startDate.setSeconds(parseInt(startTime[2]));
-
+		startDate.setHours(parseInt(startTime[0]), parseInt(startTime[1]), parseInt(startTime[2]));
 		startDate.setSeconds(startDate.getSeconds() + secondsToDelay);
-		const formattedStart = `${padNumberWithZeros(startDate.getHours(), 2)}:${padNumberWithZeros(startDate.getMinutes(), 2)}:${padNumberWithZeros(startDate.getSeconds(), 2)}`;
+		
+		const formattedStart = `${padZero(startDate.getHours())}:${padZero(startDate.getMinutes())}:${padZero(startDate.getSeconds())},${startTimeMillis}`;
+
+		// end of subtitle
+		const tupleEndTimeAndMillis = interval[1].trim().split(",");
+		const endTimeStr = tupleEndTimeAndMillis[0];
+		const endTimeMillis = tupleEndTimeAndMillis[1]
+		const endTime    = endTimeStr.split(":");
 
 		const endDate = new Date();
-		endDate.setHours(parseInt(endTime[0]));
-		endDate.setMinutes(parseInt(endTime[1]));
-		endDate.setSeconds(parseInt(endTime[2]));
-
+		endDate.setHours(parseInt(endTime[0]), parseInt(endTime[1]), parseInt(endTime[2]));
 		endDate.setSeconds(endDate.getSeconds() + secondsToDelay);
-		const formattedEnd = `${padNumberWithZeros(endDate.getHours(), 2)}:${padNumberWithZeros(endDate.getMinutes(), 2)}:${padNumberWithZeros(endDate.getSeconds(), 2)}`;
 
+		const formattedEnd = `${padZero(endDate.getHours())}:${padZero(endDate.getMinutes())}:${padZero(endDate.getSeconds())},${endTimeMillis}`;
 
-		// THIS IS WRONG
-		const newLine = line.replace(startTimeStr, formattedStart).replace(endTimeStr, formattedEnd);
+		// this will format line as
+		// hh:mm:ss,mil --> hh:mm:ss,mil
+		// 00:01:45,971 --> 00:01:48,440
+		const newLine = `${formattedStart} ${SRT_DATE_INTERVAL_SEPARATOR} ${formattedEnd}`;
 
 		// console.log(`\n\n#### UNCOMMENT TO DEBUG ####`);
 		// console.log(`'now' should be delayed '${secondsToDelay}' seconds from 'previous'\n`);
@@ -82,20 +92,19 @@ fs.readFile(path, { encoding: DEFAULT_FILE_ENCODING }, (error, data) => {
 
 	const newData = lines.join(EOL);
 
-	// resolve file save path
-	const splitPath = path.split(".");
+	// resolve file system save path
+	const splitPath = pathArg.split(".");
 	splitPath[splitPath.length-2] = splitPath[splitPath.length-2] + "-corrected";
 	const correctedPath = splitPath.join(".")
 	
-	fs.writeFileSync(correctedPath, newData, { encoding: DEFAULT_FILE_ENCODING });
+	fs.writeFileSync(correctedPath, newData, { encoding: FILE_ENCODING });
 	console.log(`great success! subs delayed in ${secondsToDelay} secs! file saved at\n${correctedPath}`);
 })
 
-function padNumberWithZeros(num, size) {
+function padZero(num) {
 	num = num.toString();
-	while (num.length < size) {
+	while (num.length < 2) {
 		num = "0" + num;
 	}
-
 	return num;
 }

@@ -2,11 +2,25 @@
 
 ## What this is
 
-This will offset all subtitles in an .srt subtitles file (specified by 1st script argument)<br>
-by an x amount of seconds (specified by 2nd script argument)<br>
-and save the new file as $filename-corrected.srt
+This will:<br>
+🡆 offset all subtitles in an .srt file (path specified in 1st script argument)<br>
+by an X amount of milliseconds (specified by 2nd script argument)<br>
+🡆 save the new file as $filename-corrected.srt
 
 ## Usage
-$ node index.js path/to/subtitle.srt delay
+```$ node index.js path/to/subtitle.srt delay-ms```
+
+## Examples
+```$ node index.js ~/movies/bugs-bunny/bugs-bunny.srt 300```<br>
+this will delay Bugs Bunny subtitle in 300 milliseconds<br>
+and save it into the output file:<br>
+~/movies/bugs-bunny/bugs-bunny-corrected.srt
+
+
+```$ node index.js ~/movies/bugs-bunny/bugs-bunny.srt -300```<br>
+this will advance Bugs Bunny subtitle in 300 milliseconds<br>
+and save it into the output file:<br>
+~/movies/bugs-bunny/bugs-bunny-corrected.srt
+
 
 Delay must be an integer number (if not specified, will fallback to some other dunno number)

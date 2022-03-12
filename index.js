@@ -1,16 +1,16 @@
 // in my case, we need to read/write the file as-is
-// if there's a problem, maybe try changin encoding to "utf-8"
+// if there's a problem, maybe try changing encoding to "utf-8"
 const FILE_ENCODING = "binary";
 
-const SRT_DATE_INTERVAL_SEPARATOR = "-->";
+const ARROW = "-->";
 
 // node file system
 const fs = require('fs');
 // eol is the default line break (generally '\n' or '\r\n') of your operating system
 const { EOL } = require('os');
 
-const pathArg = process.argv[2];
-const secondsToDelayArg = process.argv[3];
+const firstArg = process.argv[2];
+const secondArg = process.argv[3];
 
 
 console.log("");
@@ -19,26 +19,26 @@ console.log("######## NODE JS SUBTITLE DELAYER!! ########");
 console.log("############################################");
 console.log("");
 console.log(`this script will read the .srt file path passed as 1st argument`);
-console.log(`and offset all its subtitles by the number informed in the 2nd argument\n`);
+console.log(`and offset all its subtitles by the amount of ms passed as 2nd argument\n`);
 
-if (!pathArg) {
+if (!firstArg) {
 	console.log("error: you should inform the path of subtitle file (.srt) as first argument of this!!");
-	process.exit();
+	process.exit(1);
 }
 
-if (!secondsToDelayArg || isNaN(secondsToDelayArg)) {
-	console.log("error: you should inform the amount of seconds to offset\nas a plain integer like 3 or 7 or -5!!");
-	process.exit();
+if (!secondArg || isNaN(secondArg)) {
+	console.log("error: you should inform the amount of milliseconds to offset\nas an integer");
+	process.exit(1);
 }
 
-const secondsToDelay = parseInt(secondsToDelayArg);
+const msToDelay = parseInt(secondArg);
 
-fs.readFile(pathArg, { encoding: FILE_ENCODING }, (error, data) => {
-	console.log(`trying to read file ${pathArg}\n`);
+fs.readFile(firstArg, { encoding: FILE_ENCODING }, (error, data) => {
+	console.log(`trying to read file ${firstArg}\n`);
 
   if (error) {
 		console.log(error);
-    process.exit();
+    process.exit(1);
   }
 	
   const lines = data.split(/\r?\n/);
@@ -47,11 +47,11 @@ fs.readFile(pathArg, { encoding: FILE_ENCODING }, (error, data) => {
 		const line = lines[i];
 		
 		// only operate on lines that have the timestamp separator '-->'
-		if (!line.includes(SRT_DATE_INTERVAL_SEPARATOR)) {
+		if (!line.includes(ARROW)) {
 			continue;
 		}
 		
-		const interval = line.split(SRT_DATE_INTERVAL_SEPARATOR);
+		const interval = line.split(ARROW);
 
 		// start of subtitle
 		const tupleStartTimeAndMillis = interval[0].trim().split(",");
@@ -60,30 +60,35 @@ fs.readFile(pathArg, { encoding: FILE_ENCODING }, (error, data) => {
 		const startTime = startTimeStr.split(":");
 
 		const startDate = new Date();
-		startDate.setHours(parseInt(startTime[0]), parseInt(startTime[1]), parseInt(startTime[2]));
-		startDate.setSeconds(startDate.getSeconds() + secondsToDelay);
+		startDate.setHours(
+			parseInt(startTime[0]),									// hours
+			parseInt(startTime[1]), 								// mins
+			parseInt(startTime[2]), 								// secs
+			parseInt(startTimeMillis) + msToDelay); // millis
 		
-		const formattedStart = `${padZero(startDate.getHours())}:${padZero(startDate.getMinutes())}:${padZero(startDate.getSeconds())},${startTimeMillis}`;
+		const formattedStart = dateToSRTDate(startDate);
 
 		// end of subtitle
-		const tupleEndTimeAndMillis = interval[1].trim().split(",");
-		const endTimeStr = tupleEndTimeAndMillis[0];
-		const endTimeMillis = tupleEndTimeAndMillis[1]
-		const endTime    = endTimeStr.split(":");
+		const endTimeAndMillisTuple = interval[1].trim().split(",");
+		const endTimeStr    = endTimeAndMillisTuple[0];
+		const endTimeMillis = endTimeAndMillisTuple[1]
+		const endTimeTuple  = endTimeStr.split(":");
 
 		const endDate = new Date();
-		endDate.setHours(parseInt(endTime[0]), parseInt(endTime[1]), parseInt(endTime[2]));
-		endDate.setSeconds(endDate.getSeconds() + secondsToDelay);
+		endDate.setHours(
+			parseInt(endTimeTuple[0]), 						// hours
+			parseInt(endTimeTuple[1]), 						// mins
+			parseInt(endTimeTuple[2]), 						// secs
+			parseInt(endTimeMillis) + msToDelay); // millis
 
-		const formattedEnd = `${padZero(endDate.getHours())}:${padZero(endDate.getMinutes())}:${padZero(endDate.getSeconds())},${endTimeMillis}`;
+		const formattedEnd = dateToSRTDate(endDate);
 
-		// this will format line as
-		// hh:mm:ss,mil --> hh:mm:ss,mil
-		// 00:01:45,971 --> 00:01:48,440
-		const newLine = `${formattedStart} ${SRT_DATE_INTERVAL_SEPARATOR} ${formattedEnd}`;
+		// this will format line as:	hh:mm:ss,mil --> hh:mm:ss,mil
+		// example: 							  	00:01:45,971 --> 00:01:48,440
+		const newLine = `${formattedStart} ${ARROW} ${formattedEnd}`;
 
 		// console.log(`\n\n#### UNCOMMENT TO DEBUG ####`);
-		// console.log(`'now' should be delayed '${secondsToDelay}' seconds from 'previous'\n`);
+		// console.log(`'now' should be delayed '${msToDelay}' seconds from 'previous'\n`);
 		// console.log(`previous:\n${line}`);
 		// console.log(`now:\n${newLine}`);
 
@@ -93,17 +98,30 @@ fs.readFile(pathArg, { encoding: FILE_ENCODING }, (error, data) => {
 	const newData = lines.join(EOL);
 
 	// resolve file system save path
-	const splitPath = pathArg.split(".");
+	const splitPath = firstArg.split(".");
 	splitPath[splitPath.length-2] = splitPath[splitPath.length-2] + "-corrected";
 	const correctedPath = splitPath.join(".")
 	
 	fs.writeFileSync(correctedPath, newData, { encoding: FILE_ENCODING });
-	console.log(`great success! subs delayed in ${secondsToDelay} secs! file saved at\n${correctedPath}`);
+	console.log(`great success! subs delayed in ${msToDelay} secs! file saved at\n${correctedPath}`);
 })
 
-function padZero(num) {
+/** @param {Date} date @returns {String} */
+function dateToSRTDate(date) {
+	return `${padTwoZeros(date.getHours())}:${padTwoZeros(date.getMinutes())}:${padTwoZeros(date.getSeconds())},${padThreeZeros(date.getMilliseconds())}`;
+}
+
+function padTwoZeros(num) {
+	return padZeros(num, 2);
+}
+
+function padThreeZeros(num) {
+	return padZeros(num, 3);
+}
+
+function padZeros(num, charAmount) {
 	num = num.toString();
-	while (num.length < 2) {
+	while (num.length < charAmount) {
 		num = "0" + num;
 	}
 	return num;

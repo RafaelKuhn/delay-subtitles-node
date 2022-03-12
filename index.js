@@ -1,23 +1,21 @@
-// in my case, we need to read/write the file as-is
-// if there's a problem, maybe try changing encoding to "utf-8"
-const FILE_ENCODING = "binary";
-
-const ARROW = "-->";
-
 // node file system
 const fs = require('fs');
-// eol is the default line break (generally '\n' or '\r\n') of your operating system
+
+// eol is the default line break (generally '\n' or '\r\n') depends on your operating system
 const { EOL } = require('os');
+
+// in my case, it needs to read/write the file as-is (binary)
+// if there's a problem with encoding, try changing encoding to "utf-8"
+const FILE_ENCODING = "binary";
+const SRT_ARROW = "-->";
 
 const firstArg = process.argv[2];
 const secondArg = process.argv[3];
 
 
-console.log("");
-console.log("############################################");
-console.log("######## NODE JS SUBTITLE DELAYER!! ########");
-console.log("############################################");
-console.log("");
+console.log("\n##########################################");
+console.log(  "######## NODE JS SUBTITLE DELAYER ########");
+console.log(  "##########################################\n");
 console.log(`this script will read the .srt file path passed as 1st argument`);
 console.log(`and offset all its subtitles by the amount of ms passed as 2nd argument\n`);
 
@@ -36,34 +34,34 @@ const msToDelay = parseInt(secondArg);
 fs.readFile(firstArg, { encoding: FILE_ENCODING }, (error, data) => {
 	console.log(`trying to read file ${firstArg}\n`);
 
-  if (error) {
+	if (error) {
 		console.log(error);
-    process.exit(1);
-  }
+		process.exit(1);
+	}
 	
-  const lines = data.split(/\r?\n/);
+	const lines = data.split(/\r?\n/);
 
 	for (let i = 0; i < lines.length; i += 1) {
 		const line = lines[i];
 		
-		// only operate on lines that have the timestamp separator '-->'
-		if (!line.includes(ARROW)) {
+		// only operate on lines that have the timestamp arrow '-->'
+		if (!line.includes(SRT_ARROW)) {
 			continue;
 		}
 		
-		const interval = line.split(ARROW);
+		const interval = line.split(SRT_ARROW);
 
 		// start of subtitle
-		const tupleStartTimeAndMillis = interval[0].trim().split(",");
-		const startTimeStr = tupleStartTimeAndMillis[0];
-		const startTimeMillis = tupleStartTimeAndMillis[1];
-		const startTime = startTimeStr.split(":");
+		const startTimeAndMillisTuple = interval[0].trim().split(",");
+		const startTimeStr    = startTimeAndMillisTuple[0];
+		const startTimeMillis = startTimeAndMillisTuple[1];
+		const startTimeTuple  = startTimeStr.split(":");
 
 		const startDate = new Date();
 		startDate.setHours(
-			parseInt(startTime[0]),									// hours
-			parseInt(startTime[1]), 								// mins
-			parseInt(startTime[2]), 								// secs
+			parseInt(startTimeTuple[0]), // hours
+			parseInt(startTimeTuple[1]), // mins
+			parseInt(startTimeTuple[2]), // secs
 			parseInt(startTimeMillis) + msToDelay); // millis
 		
 		const formattedStart = dateToSRTDate(startDate);
@@ -76,34 +74,36 @@ fs.readFile(firstArg, { encoding: FILE_ENCODING }, (error, data) => {
 
 		const endDate = new Date();
 		endDate.setHours(
-			parseInt(endTimeTuple[0]), 						// hours
-			parseInt(endTimeTuple[1]), 						// mins
-			parseInt(endTimeTuple[2]), 						// secs
+			parseInt(endTimeTuple[0]), // hours
+			parseInt(endTimeTuple[1]), // mins
+			parseInt(endTimeTuple[2]), // secs
 			parseInt(endTimeMillis) + msToDelay); // millis
 
 		const formattedEnd = dateToSRTDate(endDate);
 
-		// this will format line as:	hh:mm:ss,mil --> hh:mm:ss,mil
-		// example: 							  	00:01:45,971 --> 00:01:48,440
-		const newLine = `${formattedStart} ${ARROW} ${formattedEnd}`;
+		/* this will format line as:
+		hh:mm:ss,mil --> hh:mm:ss,mil */
+		const newLine = `${formattedStart} ${SRT_ARROW} ${formattedEnd}`;
 
 		// console.log(`\n\n#### UNCOMMENT TO DEBUG ####`);
-		// console.log(`'now' should be delayed '${msToDelay}' seconds from 'previous'\n`);
+		// console.log(`'now' should be delayed '${msToDelay}' millis from 'previous'\n`);
 		// console.log(`previous:\n${line}`);
 		// console.log(`now:\n${newLine}`);
 
 		lines[i] = newLine;
 	}
 
-	const newData = lines.join(EOL);
+	const correctedData = lines.join(EOL);
 
 	// resolve file system save path
+	// this breaks if file has no extension lol
 	const splitPath = firstArg.split(".");
 	splitPath[splitPath.length-2] = splitPath[splitPath.length-2] + "-corrected";
 	const correctedPath = splitPath.join(".")
 	
-	fs.writeFileSync(correctedPath, newData, { encoding: FILE_ENCODING });
-	console.log(`great success! subs delayed in ${msToDelay} secs! file saved at\n${correctedPath}`);
+	// save file
+	fs.writeFileSync(correctedPath, correctedData, { encoding: FILE_ENCODING });
+	console.log(`great success! subs delayed in ${msToDelay} milliseconds! file saved at\n${correctedPath}`);
 })
 
 /** @param {Date} date @returns {String} */
@@ -119,6 +119,7 @@ function padThreeZeros(num) {
 	return padZeros(num, 3);
 }
 
+/** @param {number} num @param {number} charAmount @returns {String} */
 function padZeros(num, charAmount) {
 	num = num.toString();
 	while (num.length < charAmount) {

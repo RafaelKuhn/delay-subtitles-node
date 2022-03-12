@@ -12,15 +12,15 @@ by an X amount of milliseconds (specified by 2nd script argument)<br>
 
 ## Examples
 ```$ node index.js ~/movies/bugs-bunny/bugs-bunny.srt 300```<br>
-this will delay Bugs Bunny subtitle in 300 milliseconds<br>
+this will delay all Bugs Bunny's subtitles in 300 milliseconds<br>
 and save it into the output file:<br>
 ~/movies/bugs-bunny/bugs-bunny-corrected.srt
 
 
 ```$ node index.js ~/movies/bugs-bunny/bugs-bunny.srt -300```<br>
-this will advance Bugs Bunny subtitle in 300 milliseconds<br>
+this will advance all Bugs Bunny's subtitles in 300 milliseconds<br>
 and save it into the output file:<br>
 ~/movies/bugs-bunny/bugs-bunny-corrected.srt
 
 
-Delay must be an integer number (if not specified, will fallback to some other dunno number)
+Delay must be an integer number
